@@ -1,0 +1,555 @@
+<!DOCTYPE HTML>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradingView - Advanced Charts</title>
+
+    <script src="charting_library/charting_library.standalone.js"></script>
+    <script src="datafeeds/udf/dist/bundle.js"></script>
+    <script src="js/binance-udf.js"></script>
+    <script src="js/chart.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+
+
+    <!-- <style>
+      .save-controls {
+        position: fixed;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1000;
+        display: flex;
+        gap: 10px;
+        background-color: rgba(255, 255, 255, 0.9);
+        padding: 10px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .save-btn {
+        padding: 8px 16px;
+        background: #2962ff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .save-btn:hover {
+        background: #1e4bd8;
+      }
+      
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1001;
+      }
+      .modal-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        min-width: 300px;
+        max-width: 500px;
+        max-height: 80vh;
+        overflow-y: auto;
+      }
+      .version-list {
+        margin-top: 10px;
+      }
+      .version-item {
+        padding: 10px;
+        border: 1px solid #ddd;
+        margin: 5px 0;
+        cursor: pointer;
+        border-radius: 4px;
+      }
+      .version-item:hover {
+        background: #f5f5f5;
+      }
+      .input-group {
+        margin: 15px 0;
+      }
+      .input-group input {
+        width: 100%;
+        padding: 8px;
+        margin-top: 5px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      .modal-buttons {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 15px;
+      }
+      .date-input {
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: white;
+        color: #333;
+      }
+
+      .date-input:focus {
+        outline: none;
+        border-color: #2962ff;
+      }
+    </style> -->
+
+  </head>
+  <body>
+
+    <div class="save-controls">
+      <button id="saveBtn" class="save-btn">Save Chart</button>
+      <button id="loadBtn" class="save-btn">Load Chart</button>
+      <input type="date" id="markDate" class="date-input">
+      <button id="markBtn" class="save-btn">Mark Date</button>
+      <button id="deleteMarkBtn" class="save-btn">Delete Mark</button>
+      <button id="clearMarksBtn" class="btn">Clear All Marks</button>
+    </div>
+
+    <!-- Save Modal -->
+    <div id="saveModal" class="modal">
+      <div class="modal-content">
+        <h2>Save Chart</h2>
+        <div class="input-group">
+          <label for="versionTitle">Title:</label>
+          <input type="text" id="versionTitle" placeholder="Enter title">
+        </div>
+        <div class="modal-buttons">
+          <button class="save-btn" onclick="closeModal('saveModal')">Cancel</button>
+          <button class="save-btn" onclick="saveVersion()">Save</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Load Modal -->
+    <div id="loadModal" class="modal">
+      <div class="modal-content">
+        <h2>Load Chart</h2>
+        <div id="versionsList" class="version-list">
+          <!-- Versions will be loaded here -->
+        </div>
+        <div class="modal-buttons">
+          <button class="save-btn" onclick="closeModal('loadModal')">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="chartContainer" style="height:1000px; width:100%;"></div>
+
+    <!-- <script>
+
+      let tvWidget = null;
+      let chartMarks = [];
+
+      function showModal(modalId) {
+        document.getElementById(modalId).style.display = 'block';
+      }
+
+      function closeModal(modalId) {
+        document.getElementById(modalId).style.display = 'none';
+      }
+
+      async function saveVersion() {
+        const title = document.getElementById('versionTitle').value.trim();
+        if (!title) {
+          alert('Please enter a title');
+          return;
+        }
+
+        try {
+          const saveButton = document.getElementById('saveBtn');
+          saveButton.disabled = true;
+          saveButton.textContent = 'Saving...';
+
+          tvWidget.save(async (state) => {
+            try {
+              const response = await fetch('/api/save-chart', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  title,
+                  chartState: state
+                })
+              });
+              
+              if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to save chart');
+              }
+
+              const result = await response.json();
+              if (result.success) {
+                alert('Saved successfully!');
+                closeModal('saveModal');
+                document.getElementById('versionTitle').value = '';
+              } else {
+                throw new Error(result.error || 'Failed to save chart');
+              }
+            } catch (error) {
+              console.error('Error saving:', error);
+              alert(error.message || 'Failed to save! Please try again.');
+            } finally {
+              saveButton.disabled = false;
+              saveButton.textContent = 'Save Chart';
+            }
+          });
+        } catch (error) {
+          console.error('Error in save process:', error);
+          alert('Failed to prepare chart for saving! Please try again.');
+          const saveButton = document.getElementById('saveBtn');
+          saveButton.disabled = false;
+          saveButton.textContent = 'Save Chart';
+        }
+      }
+
+      async function loadVersion(versionId) {
+        try {
+          const response = await fetch(`/api/charts/${versionId}`);
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to load chart');
+          }
+
+          const result = await response.json();
+          if (result.success) {
+            tvWidget.load(result.chart);
+            closeModal('loadModal');
+          } else {
+            throw new Error(result.error || 'Failed to load chart');
+          }
+        } catch (error) {
+          console.error('Error loading chart:', error);
+          alert(error.message || 'Failed to load chart! Please try again.');
+        }
+      }
+
+      async function loadVersionsList() {
+        try {
+          const loadButton = document.getElementById('loadBtn');
+          loadButton.disabled = true;
+          loadButton.textContent = 'Loading...';
+
+          const response = await fetch('/api/charts');
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to load versions list');
+          }
+
+          const result = await response.json();
+          if (result.success) {
+            const versionsContainer = document.getElementById('versionsList');
+            versionsContainer.innerHTML = '';
+            
+            const charts = Object.entries(result.charts);
+            if (charts.length === 0) {
+              versionsContainer.innerHTML = '<div class="version-item">No saved charts found</div>';
+            } else {
+              charts.forEach(([id, data]) => {
+                const versionElement = document.createElement('div');
+                versionElement.className = 'version-item';
+                versionElement.onclick = () => loadVersion(id);
+                
+                const date = new Date(data.savedAt);
+                versionElement.innerHTML = `
+                  <strong>${data.title}</strong><br>
+                  <small>${date.toLocaleString()}</small>
+                `;
+                
+                versionsContainer.appendChild(versionElement);
+              });
+            }
+            
+            showModal('loadModal');
+          } else {
+            throw new Error(result.error || 'Failed to load versions list');
+          }
+        } catch (error) {
+          console.error('Error loading versions list:', error);
+          alert(error.message || 'Failed to load versions list! Please try again.');
+        } finally {
+          const loadButton = document.getElementById('loadBtn');
+          loadButton.disabled = false;
+          loadButton.textContent = 'Load Chart';
+        }
+      }
+
+      window.addEventListener('DOMContentLoaded', function() {
+
+        const binanceProvider = new BinanceUDFProvider('https://api.binance.com/api/v3');
+
+        const customDatafeed = {
+              onReady: callback => {
+                  setTimeout(() => {
+                      callback({
+                          supported_resolutions: ["1", "3", "5", "15", "30", "60", "120", "240", "360", "480", "720", "1D", "3D", "1W", "1M"],
+                          exchanges: [{value: "BINANCE", name: "Binance", desc: "Binance Exchange"}],
+                          symbols_types: [{name: "crypto", value: "crypto"}]
+                      });
+                  }, 0);
+              },
+              searchSymbols: async (userInput, exchange, symbolType, onResult) => {
+                  try {
+                      const symbols = await binanceProvider.getAllSymbols();
+                      const matchingSymbols = symbols.filter(symbol => 
+                          symbol.symbol.toLowerCase().includes(userInput.toLowerCase())
+                      );
+                      onResult(matchingSymbols);
+                  } catch (error) {
+                      console.error('Error searching symbols:', error);
+                      onResult([]);
+                  }
+              },
+              resolveSymbol: async (symbolName, onSymbolResolvedCallback, onResolveErrorCallback) => {
+                  try {
+                      const symbols = await binanceProvider.getAllSymbols();
+                      const symbolItem = symbols.find(symbol => symbol.symbol === symbolName);
+                      
+                      if (!symbolItem) {
+                          onResolveErrorCallback('Symbol not found');
+                          return;
+                      }
+
+                      const symbolInfo = {
+                          name: symbolItem.symbol,
+                          full_name: symbolItem.symbol,
+                          description: symbolItem.description,
+                          type: 'crypto',
+                          session: '24x7',
+                          timezone: 'Etc/UTC',
+                          exchange: 'BINANCE',
+                          minmov: 1,
+                          pricescale: 100000000,
+                          has_intraday: true,
+                          has_daily: true,
+                          has_weekly_and_monthly: true,
+                          supported_resolutions: ["1", "3", "5", "15", "30", "60", "120", "240", "360", "480", "720", "1D", "3D", "1W", "1M"],
+                          volume_precision: 8,
+                          data_status: 'streaming',
+                      };
+
+                      onSymbolResolvedCallback(symbolInfo);
+                  } catch (error) {
+                      console.error('Symbol resolution error:', error);
+                      onResolveErrorCallback('Symbol resolution error: ' + error.message);
+                  }
+              },
+              getBars: async (symbolInfo, resolution, periodParams, onHistoryCallback, onErrorCallback) => {
+                  try {
+                      const bars = await binanceProvider.getKlines(
+                          symbolInfo.name,
+                          resolution,
+                          periodParams.from,
+                          periodParams.to
+                      );
+                      
+                      if (bars.s !== 'ok') {
+                          onErrorCallback(bars.errmsg);
+                          return;
+                      }
+
+                      onHistoryCallback(bars.t.map((time, index) => ({
+                          time: time * 1000,
+                          open: parseFloat(bars.o[index]),
+                          high: parseFloat(bars.h[index]),
+                          low: parseFloat(bars.l[index]),
+                          close: parseFloat(bars.c[index]),
+                          volume: parseFloat(bars.v[index])
+                      })), { noData: bars.t.length === 0 });
+                  } catch (error) {
+                      console.error('Error getting bars:', error);
+                      onErrorCallback('Network error: ' + error.message);
+                  }
+              },
+              subscribeBars: () => {
+                  // برای real-time updates
+              },
+              unsubscribeBars: () => {
+                  // برای لغو real-time updates
+              }
+          };
+
+        tvWidget = new TradingView.widget({
+          container: 'chartContainer',
+          library_path: 'charting_library/',
+          clientId: 'tradingview.com',
+          userId: 'public_user_id',
+          fullscreen: true,
+          autosize: true,
+          symbol: 'BTCUSDT',
+          interval: '1D',
+          timezone: 'Etc/UTC',
+          theme: 'Dark',
+          style: '1',
+          locale: 'en',
+          datafeed: customDatafeed,
+          enabled_features: [
+              "create_volume_indicator_by_default",
+              "use_localstorage_for_settings",
+              "draw_on_chart_markers"
+          ],
+          drawings_access: {
+              type: 'all',
+              tools: [{ name: "Remove" }]
+          },
+          time_frames: [
+              { text: "1D", resolution: "1D" },
+              { text: "5D", resolution: "1D" },
+              { text: "1M", resolution: "1D" },
+              { text: "3M", resolution: "1D" },
+              { text: "6M", resolution: "1D" },
+              { text: "1Y", resolution: "1D" }
+          ],
+          overrides: {
+              "mainSeriesProperties.style": 1,
+              "mainSeriesProperties.showCountdown": true,
+              "scalesProperties.showStudyLastValue": true
+          }
+        });
+
+        async function markDate() {
+            const dateInput = document.getElementById('markDate');
+            const selectedDate = new Date(dateInput.value);
+            
+            // Validate date
+            if (!dateInput.value || isNaN(selectedDate.getTime())) {
+                alert('Please select a valid date');
+                return;
+            }
+
+            // Set time to midnight UTC
+            selectedDate.setUTCHours(0, 0, 0, 0);
+            const timestamp = selectedDate.getTime();
+            const symbol = tvWidget.activeChart().symbol();
+
+            try {
+                // Create mark without fetching from Binance
+                const response = await fetch('/api/mark-date', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        symbol,
+                        timestamp,
+                        date: dateInput.value,
+                        price: 0 // We'll let the chart handle positioning
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save mark');
+                }
+
+                await loadMarks(symbol);
+                alert('Date marked successfully!');
+            } catch (error) {
+                console.error('Error marking date:', error);
+                alert('Failed to mark date!');
+            }
+        }
+
+        async function loadMarks(symbol) {
+            try {
+                const response = await fetch(`/api/marks/${symbol}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load marks');
+                }
+
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load marks');
+                }
+
+                const chart = tvWidget.activeChart();
+
+                // Remove existing marks
+                chartMarks.forEach(mark => {
+                    try {
+                        chart.removeEntity(mark);
+                    } catch (e) {
+                        console.warn('Failed to remove mark:', e);
+                    }
+                });
+                chartMarks = [];
+
+                // Add new marks
+                data.marks.forEach(mark => {
+                    try {
+                        const markId = chart.createShape(
+                            { time: parseInt(mark.timestamp) },
+                            {
+                                shape: "arrow_down",
+                                text: "Mark",
+                                lock: true,
+                                disableSelection: false,
+                                overrides: {
+                                    color: "#FF0000",
+                                    size: 2
+                                }
+                            }
+                        );
+                        
+                        // Store the mark ID for future removal
+                        chartMarks.push(markId);
+                    } catch (e) {
+                        console.warn('Failed to create mark:', e);
+                    }
+                });
+            } catch (error) {
+                console.error('Error loading marks:', error);
+            }
+        }
+
+        tvWidget.onChartReady(() => {
+          console.log('Chart is ready');
+          const chart = tvWidget.activeChart();
+
+          chart.getAllStudies().forEach(study => {
+            chart.removeEntity(study.id);
+          });
+
+          // Load marks for initial symbol
+          loadMarks(chart.symbol());
+
+          // Add symbol change listener
+          chart.onSymbolChanged().subscribe(null, () => {
+              loadMarks(chart.symbol());
+          });
+
+        });
+
+        // Add event listener for the mark button
+        document.getElementById('markBtn').addEventListener('click', markDate);
+
+        document.getElementById('saveBtn').addEventListener('click', () => showModal('saveModal'));
+        document.getElementById('loadBtn').addEventListener('click', () => {
+          showModal('loadModal');
+          loadVersionsList();
+        });
+
+        window.addEventListener('click', (e) => {
+          if (e.target.classList.contains('modal')) {
+            closeModal(e.target.id);
+          }
+        });
+      });
+
+    </script> -->
+
+  </body>
+</html>
