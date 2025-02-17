@@ -27,9 +27,9 @@ const connectDB = async () => {
         const conn = await mongoose.connect(MONGODB_URI, {
             useNewUrlParser: true,
             useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 10000,
-            socketTimeoutMS: 45000,
-            connectTimeoutMS: 10000,
+            serverSelectionTimeoutMS: 30000,
+            socketTimeoutMS: 60000,
+            connectTimeoutMS: 30000,
             retryWrites: true,
             w: 'majority'
         });
@@ -89,6 +89,30 @@ const markSchema = new mongoose.Schema({
 markSchema.index({ symbol: 1, timestamp: 1 }, { unique: true });
 
 const Mark = mongoose.model('Mark', markSchema);
+
+// Add saveMarkWithRetry helper function
+const saveMarkWithRetry = async (markData, retries = 3) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            const existingMark = await Mark.findOne({ 
+                symbol: markData.symbol, 
+                timestamp: markData.timestamp 
+            });
+            
+            if (existingMark) {
+                return { success: true, message: 'Mark already exists' };
+            }
+
+            const mark = new Mark(markData);
+            await mark.save();
+            return { success: true, message: 'Mark created successfully' };
+        } catch (error) {
+            console.log(`Retry attempt ${i + 1} failed:`, error.message);
+            if (i === retries - 1) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
+    }
+};
 
 // Helper function to check DB connection
 const ensureDbConnected = (req, res, next) => {
@@ -191,7 +215,48 @@ app.get('/api/charts/:id', async (req, res) => {
     }
 });
 
-// Update the mark-date endpoint
+// // Update the mark-date endpoint old of app.post
+// app.post('/api/mark-date', async (req, res) => {
+//     try {
+//         const { symbol, timestamp, date } = req.body;
+        
+//         if (!symbol || !timestamp || !date) {
+//             return res.status(400).json({ 
+//                 success: false, 
+//                 error: 'Missing required fields' 
+//             });
+//         }
+
+//         // Validate timestamp
+//         if (isNaN(timestamp)) {
+//             return res.status(400).json({
+//                 success: false,
+//                 error: 'Invalid timestamp'
+//             });
+//         }
+
+//         const mark = new Mark({
+//             symbol,
+//             timestamp,
+//             date,
+//             price: 0, // We're not using price anymore
+//             createdAt: new Date()
+//         });
+        
+//         await mark.save();
+//         res.json({ 
+//             success: true,
+//             message: 'Mark created successfully'
+//         });
+//     } catch (error) {
+//         console.error('Error saving mark:', error);
+//         res.status(500).json({ 
+//             success: false, 
+//             error: error.message || 'Failed to save mark'
+//         });
+//     }
+// });
+
 app.post('/api/mark-date', async (req, res) => {
     try {
         const { symbol, timestamp, date } = req.body;
@@ -203,27 +268,14 @@ app.post('/api/mark-date', async (req, res) => {
             });
         }
 
-        // Validate timestamp
-        if (isNaN(timestamp)) {
-            return res.status(400).json({
-                success: false,
-                error: 'Invalid timestamp'
-            });
-        }
-
-        const mark = new Mark({
+        const result = await saveMarkWithRetry({
             symbol,
             timestamp,
             date,
-            price: 0, // We're not using price anymore
             createdAt: new Date()
         });
         
-        await mark.save();
-        res.json({ 
-            success: true,
-            message: 'Mark created successfully'
-        });
+        res.json(result);
     } catch (error) {
         console.error('Error saving mark:', error);
         res.status(500).json({ 
