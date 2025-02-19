@@ -546,6 +546,11 @@ async function markDate() {
           // رفرش مارک‌ها
           await loadMarks(symbol);
 
+          // رفرش صفحه بعد از مکث کوتاه
+          setTimeout(() => {
+            window.location.reload();
+        }, 1000); // 1 ثانیه تاخیر برای نمایش پیام موفقیت
+
       }
   } catch (error) {
       console.error('Error marking date:', error);
