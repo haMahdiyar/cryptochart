@@ -1,5 +1,5 @@
 class MarkHandler {
-    static async saveMarkWithRetry(markData, maxRetries = 3, delay = 1000) {
+    static async saveMarkWithRetry(markData, maxRetries = 6, delay = 2000) {
         for (let attempt = 0; attempt < maxRetries; attempt++) {
             try {
                 const response = await fetch('/api/mark-date', {
