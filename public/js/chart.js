@@ -372,63 +372,113 @@ async function loadMarks(symbol) {
 }
 
 // Update markDate function to ensure proper data format
-async function markDate() {
-    const dateInput = document.getElementById('markDate');
-    const selectedDate = new Date(dateInput.value);
+// async function markDate() {
+//     const dateInput = document.getElementById('markDate');
+//     const selectedDate = new Date(dateInput.value);
     
-    if (!dateInput.value || isNaN(selectedDate.getTime())) {
-        alert('Please select a valid date');
-        return;
-    }
+//     if (!dateInput.value || isNaN(selectedDate.getTime())) {
+//         alert('Please select a valid date');
+//         return;
+//     }
 
-    selectedDate.setUTCHours(0, 0, 0, 0);
-    const timestamp = selectedDate.getTime();
-    const symbol = tvWidget.activeChart().symbol();
-    const chart = tvWidget.activeChart();
+//     selectedDate.setUTCHours(0, 0, 0, 0);
+//     const timestamp = selectedDate.getTime();
+//     const symbol = tvWidget.activeChart().symbol();
+//     const chart = tvWidget.activeChart();
 
-    try {
-        console.log('Creating mark for:', new Date(timestamp).toISOString());
+//     try {
+//         console.log('Creating mark for:', new Date(timestamp).toISOString());
 
-        // First save to database with proper data structure
-        const response = await fetch('/api/mark-date', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                symbol,
-                timestamp,
-                date: dateInput.value
-            })
-        });
+//         // First save to database with proper data structure
+//         const response = await fetch('/api/mark-date', {
+//             method: 'POST',
+//             headers: {
+//                 'Content-Type': 'application/json',
+//             },
+//             body: JSON.stringify({
+//                 symbol,
+//                 timestamp,
+//                 date: dateInput.value
+//             })
+//         });
 
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to save mark');
-        }
+//         if (!response.ok) {
+//             const errorData = await response.json();
+//             throw new Error(errorData.error || 'Failed to save mark');
+//         }
 
-        // Create the mark on the chart
-        const markId = chart.createShape(
-            { 
-                time: timestamp / 1000,
-                channel: "high",
-                offset: 200
-            },
-            createShapeConfig(symbol, timestamp)
-        );
+//         // Create the mark on the chart
+//         const markId = chart.createShape(
+//             { 
+//                 time: timestamp / 1000,
+//                 channel: "high",
+//                 offset: 200
+//             },
+//             createShapeConfig(symbol, timestamp)
+//         );
 
-        // Store mark data locally
-        chartMarks.push({
-            id: markId,
-            timestamp: timestamp,
-            symbol: symbol
-        });
+//         // Store mark data locally
+//         chartMarks.push({
+//             id: markId,
+//             timestamp: timestamp,
+//             symbol: symbol
+//         });
 
-        console.log('Mark saved successfully');
-    } catch (error) {
-        console.error('Error marking date:', error);
-        alert(error.message);
-    }
+//         console.log('Mark saved successfully');
+//     } catch (error) {
+//         console.error('Error marking date:', error);
+//         alert(error.message);
+//     }
+// }
+
+async function markDate() {
+  const dateInput = document.getElementById('markDate');
+  const selectedDate = new Date(dateInput.value);
+  
+  if (!dateInput.value || isNaN(selectedDate.getTime())) {
+      alert('Please select a valid date');
+      return;
+  }
+
+  selectedDate.setUTCHours(0, 0, 0, 0);
+  const timestamp = selectedDate.getTime();
+  const symbol = tvWidget.activeChart().symbol();
+  const chart = tvWidget.activeChart();
+
+  try {
+      console.log('Creating mark for:', new Date(timestamp).toISOString());
+
+      // استفاده از کلاس MarkHandler برای ذخیره با قابلیت retry
+      const result = await MarkHandler.saveMarkWithRetry({
+          symbol,
+          timestamp,
+          date: dateInput.value
+      });
+
+      if (result.success) {
+          // Create the mark on the chart
+          const markId = chart.createShape(
+              { 
+                  time: timestamp / 1000,
+                  channel: "high",
+                  offset: 200
+              },
+              createShapeConfig(symbol, timestamp)
+          );
+
+          // Store mark data locally
+          chartMarks.push({
+              id: markId,
+              timestamp: timestamp,
+              symbol: symbol
+          });
+
+          console.log('Mark saved successfully');
+      }
+  } catch (error) {
+      console.error('Error marking date:', error);
+      alert(error.message);
+  }
 }
 
 // Add the clearAllMarks function

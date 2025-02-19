@@ -25,8 +25,8 @@ console.log('Attempting to connect to MongoDB...');
 const connectDB = async () => {
     try {
         const conn = await mongoose.connect(MONGODB_URI, {
-            useNewUrlParser: true,
-            useUnifiedTopology: true,
+            // useNewUrlParser: true,
+            // useUnifiedTopology: true,
             serverSelectionTimeoutMS: 30000,
             socketTimeoutMS: 60000,
             connectTimeoutMS: 30000,
@@ -130,37 +130,37 @@ const ensureDbConnected = (req, res, next) => {
 app.use('/api', ensureDbConnected);
 
 // ذخیره نسخه جدید
-app.post('/api/save-chart', async (req, res) => {
-    try {
-        const { title, chartState } = req.body;
+// app.post('/api/save-chart', async (req, res) => {
+//     try {
+//         const { title, chartState } = req.body;
         
-        if (!title) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Title is required' 
-            });
-        }
+//         if (!title) {
+//             return res.status(400).json({ 
+//                 success: false, 
+//                 error: 'Title is required' 
+//             });
+//         }
 
-        const chart = new Chart({
-            title,
-            state: chartState,
-            savedAt: new Date()
-        });
+//         const chart = new Chart({
+//             title,
+//             state: chartState,
+//             savedAt: new Date()
+//         });
         
-        await chart.save();
-        res.json({ 
-            success: true, 
-            message: 'Version saved successfully', 
-            versionId: chart._id 
-        });
-    } catch (error) {
-        console.error('Error saving chart:', error);
-        res.status(500).json({ 
-            success: false, 
-            error: error.message || 'Failed to save chart'
-        });
-    }
-});
+//         await chart.save();
+//         res.json({ 
+//             success: true, 
+//             message: 'Version saved successfully', 
+//             versionId: chart._id 
+//         });
+//     } catch (error) {
+//         console.error('Error saving chart:', error);
+//         res.status(500).json({ 
+//             success: false, 
+//             error: error.message || 'Failed to save chart'
+//         });
+//     }
+// });
 
 // دریافت لیست نمودارها
 app.get('/api/charts', async (req, res) => {
