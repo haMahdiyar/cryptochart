@@ -431,6 +431,56 @@ async function loadMarks(symbol) {
 //     }
 // }
 
+// async function markDate() {
+//   const dateInput = document.getElementById('markDate');
+//   const selectedDate = new Date(dateInput.value);
+  
+//   if (!dateInput.value || isNaN(selectedDate.getTime())) {
+//       alert('Please select a valid date');
+//       return;
+//   }
+
+//   selectedDate.setUTCHours(0, 0, 0, 0);
+//   const timestamp = selectedDate.getTime();
+//   const symbol = tvWidget.activeChart().symbol();
+//   const chart = tvWidget.activeChart();
+
+//   try {
+//       console.log('Creating mark for:', new Date(timestamp).toISOString());
+
+//       // استفاده از کلاس MarkHandler برای ذخیره با قابلیت retry
+//       const result = await MarkHandler.saveMarkWithRetry({
+//           symbol,
+//           timestamp,
+//           date: dateInput.value
+//       });
+
+//       if (result.success) {
+//           // Create the mark on the chart
+//           const markId = chart.createShape(
+//               { 
+//                   time: timestamp / 1000,
+//                   channel: "high",
+//                   offset: 200
+//               },
+//               createShapeConfig(symbol, timestamp)
+//           );
+
+//           // Store mark data locally
+//           chartMarks.push({
+//               id: markId,
+//               timestamp: timestamp,
+//               symbol: symbol
+//           });
+
+//           console.log('Mark saved successfully');
+//       }
+//   } catch (error) {
+//       console.error('Error marking date:', error);
+//       alert(error.message);
+//   }
+// }
+
 async function markDate() {
   const dateInput = document.getElementById('markDate');
   const selectedDate = new Date(dateInput.value);
@@ -440,15 +490,33 @@ async function markDate() {
       return;
   }
 
-  selectedDate.setUTCHours(0, 0, 0, 0);
-  const timestamp = selectedDate.getTime();
-  const symbol = tvWidget.activeChart().symbol();
   const chart = tvWidget.activeChart();
+  const resolution = chart.resolution();
+  const symbol = chart.symbol();
+
+  // بهبود محاسبه timestamp
+  let timestamp = selectedDate.getTime();
+  
+  if (!resolution.includes('D')) {
+      const minutes = parseInt(resolution);
+      if (!isNaN(minutes)) {
+          const now = new Date();
+          // تنظیم ساعت و دقیقه از زمان فعلی
+          selectedDate.setHours(now.getHours());
+          selectedDate.setMinutes(Math.floor(now.getMinutes() / minutes) * minutes);
+          selectedDate.setSeconds(0);
+          selectedDate.setMilliseconds(0);
+          timestamp = selectedDate.getTime();
+      }
+  } else {
+      // برای تایم‌فریم روزانه و بالاتر
+      selectedDate.setUTCHours(0, 0, 0, 0);
+      timestamp = selectedDate.getTime();
+  }
 
   try {
-      console.log('Creating mark for:', new Date(timestamp).toISOString());
+      console.log('Creating mark for:', new Date(timestamp).toISOString(), 'Resolution:', resolution);
 
-      // استفاده از کلاس MarkHandler برای ذخیره با قابلیت retry
       const result = await MarkHandler.saveMarkWithRetry({
           symbol,
           timestamp,
@@ -456,7 +524,6 @@ async function markDate() {
       });
 
       if (result.success) {
-          // Create the mark on the chart
           const markId = chart.createShape(
               { 
                   time: timestamp / 1000,
@@ -466,14 +533,19 @@ async function markDate() {
               createShapeConfig(symbol, timestamp)
           );
 
-          // Store mark data locally
           chartMarks.push({
               id: markId,
               timestamp: timestamp,
               symbol: symbol
           });
 
+          // نمایش پیام موفقیت
+          showSuccessMessage('Mark added successfully!');
           console.log('Mark saved successfully');
+
+          // رفرش مارک‌ها
+          await loadMarks(symbol);
+
       }
   } catch (error) {
       console.error('Error marking date:', error);
@@ -481,7 +553,76 @@ async function markDate() {
   }
 }
 
-// Add the clearAllMarks function
+// اضافه کردن تابع نمایش پیام موفقیت
+function showSuccessMessage(message) {
+    const successDiv = document.createElement('div');
+    successDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background-color: #4CAF50;
+        color: white;
+        padding: 15px;
+        border-radius: 4px;
+        z-index: 9999;
+        opacity: 1;
+        transition: opacity 0.5s;
+    `;
+    successDiv.textContent = message;
+    document.body.appendChild(successDiv);
+
+    // حذف پیام بعد از 3 ثانیه با انیمیشن
+    setTimeout(() => {
+        successDiv.style.opacity = '0';
+        setTimeout(() => {
+            document.body.removeChild(successDiv);
+        }, 500);
+    }, 3000);
+}
+
+// // Add the clearAllMarks function
+// async function clearAllMarks() {
+//   if (!confirm('Are you sure you want to delete all marks? This cannot be undone.')) {
+//       return;
+//   }
+
+//   const symbol = tvWidget.activeChart().symbol();
+//   const chart = tvWidget.activeChart();
+
+//   try {
+//       const response = await fetch('/api/marks/clear-all', {
+//           method: 'DELETE',
+//           headers: {
+//               'Content-Type': 'application/json',
+//           },
+//           body: JSON.stringify({ symbol })
+//       });
+
+//       if (!response.ok) {
+//           throw new Error('Failed to clear marks');
+//       }
+
+//       // Remove all marks from chart
+//       chartMarks.forEach(mark => {
+//           try {
+//               chart.removeEntity(mark.id);
+//           } catch (e) {
+//               console.warn('Failed to remove mark:', e);
+//           }
+//       });
+
+//       // Clear local arrays
+//       chartMarks = [];
+//       deletedMarks.clear();
+
+//       console.log('All marks cleared successfully');
+//       alert('All marks have been cleared');
+//   } catch (error) {
+//       console.error('Error clearing marks:', error);
+//       alert('Failed to clear marks: ' + error.message);
+//   }
+// }
+
 async function clearAllMarks() {
   if (!confirm('Are you sure you want to delete all marks? This cannot be undone.')) {
       return;
@@ -491,33 +632,26 @@ async function clearAllMarks() {
   const chart = tvWidget.activeChart();
 
   try {
-      const response = await fetch('/api/marks/clear-all', {
-          method: 'DELETE',
-          headers: {
-              'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ symbol })
-      });
-
-      if (!response.ok) {
-          throw new Error('Failed to clear marks');
+      const result = await MarkHandler.deleteAllMarksWithRetry(symbol);
+      
+      if (result.success) {
+          // استفاده از removeEntity به جای removeShape
+          chartMarks.forEach(mark => {
+              if (mark.symbol === symbol) {
+                  try {
+                      chart.removeEntity(mark.id);
+                  } catch (e) {
+                      console.warn('Failed to remove mark:', e);
+                  }
+              }
+          });
+          
+          // پاک کردن آرایه محلی
+          chartMarks = chartMarks.filter(mark => mark.symbol !== symbol);
+          deletedMarks.clear();
+          
+          console.log('All marks cleared successfully');
       }
-
-      // Remove all marks from chart
-      chartMarks.forEach(mark => {
-          try {
-              chart.removeEntity(mark.id);
-          } catch (e) {
-              console.warn('Failed to remove mark:', e);
-          }
-      });
-
-      // Clear local arrays
-      chartMarks = [];
-      deletedMarks.clear();
-
-      console.log('All marks cleared successfully');
-      alert('All marks have been cleared');
   } catch (error) {
       console.error('Error clearing marks:', error);
       alert('Failed to clear marks: ' + error.message);

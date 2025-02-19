@@ -371,6 +371,27 @@ app.delete('/api/marks/clear-all', async (req, res) => {
     }
 });
 
+// Add this route after other routes
+app.delete('/api/marks/:symbol', async (req, res) => {
+    try {
+        const { symbol } = req.params;
+        
+        // Delete all marks for this symbol
+        await Mark.deleteMany({ symbol });
+        
+        res.json({ 
+            success: true, 
+            message: 'All marks deleted successfully' 
+        });
+    } catch (error) {
+        console.error('Error deleting marks:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: error.message || 'Failed to delete marks' 
+        });
+    }
+});
+
 // Initialize server
 const startServer = async () => {
     // First connect to MongoDB
