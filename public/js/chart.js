@@ -4,6 +4,18 @@ let chartMarks = [];
 let deletedMarks = new Set();
 let selectedMarkId = null;
 
+// Add at the beginning of the file, after variable declarations
+async function initializeChart() {
+  const chart = tvWidget.activeChart();
+  const symbol = chart.symbol();
+
+  // Load marks in parallel with chart initialization
+  Promise.all([
+      loadMarks(symbol),
+      // wait(500) // Minimum wait time for chart stability
+  ]).catch(error => console.error('Initialization error:', error));
+}
+
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 function showModal(modalId) {
@@ -240,7 +252,7 @@ window.addEventListener('DOMContentLoaded', function() {
 // Update createShapeConfig function to set properties TradingView needs
 const createShapeConfig = (symbol, timestamp) => ({
     shape: "arrow_down",
-    lock: false,
+    lock: true,
     disableSelection: false,
     showInObjectsTree: true,  // Make shape selectable in object tree
     overrides: {
@@ -251,9 +263,16 @@ const createShapeConfig = (symbol, timestamp) => ({
         transparency: 10,
         visible: true,
         zLevel: "top",
-        fixedSize: true
+        fixedSize: true,
+        extendTop: true,      // خط را به بالای صفحه می‌کشد
+        extendStyle: 1,       // خط چین
+        fontsize: 12,
+        linestyle: 1          // خط چین (1: خط چین، 0: خط ممتد)
+    },
+    coords: {
+        price: 0,            // قیمت صفر برای انتقال به بالای صفحه
+        channel: "top"       // قرار دادن در بالای صفحه
     }
-    // Remove custom event handlers to let TradingView handle selection
 });
 
   tvWidget = new TradingView.widget({
@@ -314,7 +333,7 @@ async function loadMarks(symbol) {
     console.log('Loading marks for symbol:', symbol);
     try {
         // Ensure chart is ready
-        await wait(500); // Increased wait time
+        // await wait(1000); // Increased wait time
         
         const response = await fetch(`/api/marks/${symbol}`);
         if (!response.ok) {
@@ -338,18 +357,46 @@ async function loadMarks(symbol) {
 
         // Add new marks
         if (data.marks && Array.isArray(data.marks)) {
-            for (const mark of data.marks) {
+            // مرتب‌سازی مارک‌ها بر اساس timestamp
+            const sortedMarks = data.marks.sort((a, b) => a.timestamp - b.timestamp);
+            
+            for (const mark of sortedMarks) {
                 try {
                     const timestamp = parseInt(mark.timestamp);
                     console.log('Creating mark with timestamp:', timestamp);
+
+                    // await wait(100); // تاخیر کوتاه بین ایجاد هر مارک
                     
                     const markId = chart.createShape(
                         { 
                             time: timestamp / 1000,
-                            channel: "high",
+                            channel: "top",
                             offset: 50
                         },
-                        createShapeConfig(symbol, timestamp) 
+                        {
+                          shape: "arrow_down",
+                          lock: true,
+                          disableSelection: false,
+                          showInObjectsTree: true,
+                          overrides: {
+                              color: "#FF0000",
+                              linewidth: 2,
+                              size: 2,
+                              backgroundColor: "transparent",
+                              transparency: 10,
+                              visible: true,
+                              zLevel: "top",
+                              fixedSize: true,
+                              extendTop: true,
+                              extendStyle: 1,
+                              fontsize: 12,
+                              linestyle: 1
+                          },
+                          coords: {
+                              price: 0,
+                              channel: "top"
+                          }
+                      }
                     );
 
                     chartMarks.push({
@@ -372,64 +419,6 @@ async function loadMarks(symbol) {
 }
 
 // Update markDate function to ensure proper data format
-// async function markDate() {
-//     const dateInput = document.getElementById('markDate');
-//     const selectedDate = new Date(dateInput.value);
-    
-//     if (!dateInput.value || isNaN(selectedDate.getTime())) {
-//         alert('Please select a valid date');
-//         return;
-//     }
-
-//     selectedDate.setUTCHours(0, 0, 0, 0);
-//     const timestamp = selectedDate.getTime();
-//     const symbol = tvWidget.activeChart().symbol();
-//     const chart = tvWidget.activeChart();
-
-//     try {
-//         console.log('Creating mark for:', new Date(timestamp).toISOString());
-
-//         // First save to database with proper data structure
-//         const response = await fetch('/api/mark-date', {
-//             method: 'POST',
-//             headers: {
-//                 'Content-Type': 'application/json',
-//             },
-//             body: JSON.stringify({
-//                 symbol,
-//                 timestamp,
-//                 date: dateInput.value
-//             })
-//         });
-
-//         if (!response.ok) {
-//             const errorData = await response.json();
-//             throw new Error(errorData.error || 'Failed to save mark');
-//         }
-
-//         // Create the mark on the chart
-//         const markId = chart.createShape(
-//             { 
-//                 time: timestamp / 1000,
-//                 channel: "high",
-//                 offset: 200
-//             },
-//             createShapeConfig(symbol, timestamp)
-//         );
-
-//         // Store mark data locally
-//         chartMarks.push({
-//             id: markId,
-//             timestamp: timestamp,
-//             symbol: symbol
-//         });
-
-//         console.log('Mark saved successfully');
-//     } catch (error) {
-//         console.error('Error marking date:', error);
-//         alert(error.message);
-//     }
-// }
 
 // async function markDate() {
 //   const dateInput = document.getElementById('markDate');
@@ -440,15 +429,33 @@ async function loadMarks(symbol) {
 //       return;
 //   }
 
-//   selectedDate.setUTCHours(0, 0, 0, 0);
-//   const timestamp = selectedDate.getTime();
-//   const symbol = tvWidget.activeChart().symbol();
 //   const chart = tvWidget.activeChart();
+//   const resolution = chart.resolution();
+//   const symbol = chart.symbol();
+
+//   // بهبود محاسبه timestamp
+//   let timestamp = selectedDate.getTime();
+  
+//   if (!resolution.includes('D')) {
+//       const minutes = parseInt(resolution);
+//       if (!isNaN(minutes)) {
+//           const now = new Date();
+//           // تنظیم ساعت و دقیقه از زمان فعلی
+//           selectedDate.setHours(now.getHours());
+//           selectedDate.setMinutes(Math.floor(now.getMinutes() / minutes) * minutes);
+//           selectedDate.setSeconds(0);
+//           selectedDate.setMilliseconds(0);
+//           timestamp = selectedDate.getTime();
+//       }
+//   } else {
+//       // برای تایم‌فریم روزانه و بالاتر
+//       selectedDate.setUTCHours(0, 0, 0, 0);
+//       timestamp = selectedDate.getTime();
+//   }
 
 //   try {
-//       console.log('Creating mark for:', new Date(timestamp).toISOString());
+//       console.log('Creating mark for:', new Date(timestamp).toISOString(), 'Resolution:', resolution);
 
-//       // استفاده از کلاس MarkHandler برای ذخیره با قابلیت retry
 //       const result = await MarkHandler.saveMarkWithRetry({
 //           symbol,
 //           timestamp,
@@ -456,7 +463,6 @@ async function loadMarks(symbol) {
 //       });
 
 //       if (result.success) {
-//           // Create the mark on the chart
 //           const markId = chart.createShape(
 //               { 
 //                   time: timestamp / 1000,
@@ -466,15 +472,27 @@ async function loadMarks(symbol) {
 //               createShapeConfig(symbol, timestamp)
 //           );
 
-//           // Store mark data locally
 //           chartMarks.push({
 //               id: markId,
 //               timestamp: timestamp,
 //               symbol: symbol
 //           });
 
+//           // نمایش پیام موفقیت
+//           showSuccessMessage('Mark added successfully!');
 //           console.log('Mark saved successfully');
+
+//           // رفرش مارک‌ها
+//           await loadMarks(symbol);
+
+//         //   // رفرش صفحه بعد از مکث کوتاه
+//         //   setTimeout(() => {
+//         //     window.location.reload();
+//         // }, 1000); // 1 ثانیه تاخیر برای نمایش پیام موفقیت
+
 //       }
+
+      
 //   } catch (error) {
 //       console.error('Error marking date:', error);
 //       alert(error.message);
@@ -524,32 +542,25 @@ async function markDate() {
       });
 
       if (result.success) {
-          const markId = chart.createShape(
-              { 
-                  time: timestamp / 1000,
-                  channel: "high",
-                  offset: 200
-              },
-              createShapeConfig(symbol, timestamp)
-          );
-
-          chartMarks.push({
-              id: markId,
-              timestamp: timestamp,
-              symbol: symbol
-          });
+          // پاک کردن مارک‌های موجود
+          for (const mark of chartMarks) {
+              try {
+                  chart.removeEntity(mark.id);
+              } catch (e) {
+                  console.warn('Failed to remove mark:', e);
+              }
+          }
+          chartMarks = [];
 
           // نمایش پیام موفقیت
           showSuccessMessage('Mark added successfully!');
           console.log('Mark saved successfully');
 
-          // رفرش مارک‌ها
+          // لود مجدد همه مارک‌ها
           await loadMarks(symbol);
 
-          // رفرش صفحه بعد از مکث کوتاه
-          setTimeout(() => {
-            window.location.reload();
-        }, 1000); // 1 ثانیه تاخیر برای نمایش پیام موفقیت
+          // رفرش صفحه
+          window.location.reload();
 
       }
   } catch (error) {
@@ -711,6 +722,9 @@ tvWidget.onChartReady(() => {
   console.log('Chart is ready');
   const chart = tvWidget.activeChart();
 
+  // Initialize immediately
+  initializeChart();
+
   // Update to use proper selection event
   tvWidget.subscribe('selection_drawing', (params) => {
         try {
@@ -757,7 +771,7 @@ tvWidget.onChartReady(() => {
         deletedMarks.clear();
         
         // Load new marks after chart is ready
-        await wait(500);
+        // await wait(500);
         await loadMarks(newSymbol);
     });
 
